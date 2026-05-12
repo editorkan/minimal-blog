@@ -117,12 +117,9 @@ function renderMediaBlock(block) {
   const image = block.match(/^!\[([^\]]*)\]\(([^)\s]+)\)$/);
 
   if (image && isSafeUrl(image[2], { media: true })) {
-    const alt = image[1].trim();
-
     return `
       <figure>
-        <img src="${escapeHtml(image[2])}" alt="${escapeHtml(alt)}" loading="lazy" />
-        ${alt ? `<figcaption>${escapeHtml(alt)}</figcaption>` : ""}
+        <img src="${escapeHtml(image[2])}" alt="" loading="lazy" />
       </figure>
     `;
   }
@@ -130,12 +127,9 @@ function renderMediaBlock(block) {
   const video = block.match(/^@\[video(?::([^\]]+))?\]\(([^)\s]+)\)$/);
 
   if (video && isSafeUrl(video[2], { media: true })) {
-    const caption = video[1]?.trim() ?? "";
-
     return `
       <figure>
         <video src="${escapeHtml(video[2])}" controls preload="metadata"></video>
-        ${caption ? `<figcaption>${escapeHtml(caption)}</figcaption>` : ""}
       </figure>
     `;
   }
@@ -571,19 +565,16 @@ function serializeMediaNode(node) {
 
   if (image) {
     const src = image.getAttribute("src") ?? "";
-    const alt = image.getAttribute("alt") ?? "";
 
-    return isSafeUrl(src, { media: true }) ? `![${alt}](${src})` : "";
+    return isSafeUrl(src, { media: true }) ? `![](${src})` : "";
   }
 
   const video = node.matches?.("video") ? node : node.querySelector?.("video");
 
   if (video) {
     const src = video.getAttribute("src") ?? "";
-    const caption = node.querySelector?.("figcaption")?.textContent.trim() ?? "";
-    const label = caption ? `:${caption}` : "";
 
-    return isSafeUrl(src, { media: true }) ? `@[video${label}](${src})` : "";
+    return isSafeUrl(src, { media: true }) ? `@[video](${src})` : "";
   }
 
   return "";
