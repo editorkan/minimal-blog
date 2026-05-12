@@ -78,9 +78,9 @@
         <form id="admin-form" class="admin-form">
           <input
             id="admin-username"
-            type="text"
+            type="email"
             autocomplete="username"
-            placeholder="아이디"
+            placeholder="email"
             required
           />
           <input
@@ -90,14 +90,7 @@
             placeholder="비밀번호"
             required
           />
-          <input
-            id="admin-password-confirm"
-            type="password"
-            autocomplete="new-password"
-            placeholder="비밀번호 확인"
-            hidden
-          />
-          <button id="admin-submit" type="submit">로그인</button>
+        <button id="admin-submit" type="submit">로그인</button>
         </form>
         <button id="logout-admin" class="plain-button" type="button" hidden>
           로그아웃
@@ -106,6 +99,8 @@
       </div>
     </section>
 
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="./config.js"></script>
     <script src="./script.js"></script>
   </body>
 </html>

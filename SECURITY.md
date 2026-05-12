@@ -1,18 +1,28 @@
 # Security Notes
 
-## Scope
+## Security Boundary
 
-This is a static GitHub Pages site. It has no server-side authentication, database, or trusted backend.
+GitHub Pages only serves static files. Authentication, authorization, writes, and subscriber access are handled by Supabase.
 
-## Important Limits
+## Controls
 
-- The hidden admin panel is not a production security boundary.
-- Client-side state can be modified by the browser owner.
-- Posts created in the browser are local to that browser unless committed to the GitHub repository.
-- Email subscribers are stored in local browser storage and are not a real mailing list.
+- Admin login uses Supabase Auth, not client-only password checks.
+- Admin authorization uses the `admin_users` table and Row Level Security policies.
+- Public visitors can read published posts and insert their own email into `subscribers`.
+- Public visitors cannot read the subscriber list.
+- Post writes require an authenticated admin user.
+- Email delivery is performed by a Supabase Edge Function using server-side secrets.
 
-## Safer Publishing Model
+## Residual Risks
 
-Use GitHub account permissions to control production publishing. Only trusted maintainers should have write access to the repository.
+- The Supabase anon key is public by design. RLS policies must stay enabled.
+- Anyone with GitHub repository write access can change frontend code.
+- `config.js` contains public Supabase project metadata only. Do not put service-role keys, Resend keys, or SMTP credentials in frontend files.
+- `Ctrl+R` is only a hidden entry point, not a security control. Supabase Auth and RLS are the actual controls.
 
-For real private admin login, server-side authentication and a backend email service are required.
+## Deployment Checklist
+
+- Keep `public.posts`, `public.subscribers`, and `public.admin_users` RLS enabled.
+- Keep `SUPABASE_SERVICE_ROLE_KEY` only in Supabase Edge Function secrets.
+- Keep `RESEND_API_KEY` only in Supabase Edge Function secrets.
+- Restrict GitHub repository write access to trusted maintainers.

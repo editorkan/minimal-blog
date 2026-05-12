@@ -1,40 +1,10 @@
-const STORAGE_KEY = "minimal-blog-posts";
-const SUBSCRIBERS_KEY = "minimal-blog-subscribers";
-const ADMIN_KEY = "minimal-blog-admin";
-const ADMIN_SESSION_KEY = "minimal-blog-admin-session";
-
-const defaultPosts = [
-  {
-    id: "quiet-start",
-    title: "시작",
-    date: "2026.05.12",
-    tags: ["기록"],
-    body: [
-      "무언가를 오래 남기기 위해 많은 형식이 필요하지는 않다.",
-      "이곳에는 생각이 지나간 자리만 간단히 적어둔다.",
-    ],
-  },
-  {
-    id: "small-notes",
-    title: "작은 기록",
-    date: "2026.05.10",
-    tags: ["기록"],
-    body: [
-      "기록은 완성된 글이 아니어도 된다.",
-      "당시의 감각을 잃지 않을 정도면 충분하다.",
-    ],
-  },
-  {
-    id: "less-screen",
-    title: "비워두기",
-    date: "2026.05.08",
-    tags: ["생각"],
-    body: [
-      "화면에 무언가를 더하는 일은 쉽다.",
-      "덜어내고도 필요한 것이 남아 있는지 확인하는 일은 조금 더 어렵다.",
-    ],
-  },
-];
+const config = window.BLOG_CONFIG ?? {};
+const supabaseUrl = config.SUPABASE_URL;
+const supabaseAnonKey = config.SUPABASE_ANON_KEY;
+const isConfigured = Boolean(supabaseUrl && supabaseAnonKey);
+const supabaseClient = isConfigured
+  ? window.supabase.createClient(supabaseUrl, supabaseAnonKey)
+  : null;
 
 const postsElement = document.querySelector("#posts");
 const articleElement = document.querySelector("#article");
@@ -53,9 +23,8 @@ const subscribeStatus = document.querySelector("#subscribe-status");
 const adminPanel = document.querySelector("#admin-panel");
 const adminForm = document.querySelector("#admin-form");
 const adminTitle = document.querySelector("#admin-title");
-const adminUsername = document.querySelector("#admin-username");
+const adminEmail = document.querySelector("#admin-username");
 const adminPassword = document.querySelector("#admin-password");
-const adminPasswordConfirm = document.querySelector("#admin-password-confirm");
 const adminSubmit = document.querySelector("#admin-submit");
 const adminStatus = document.querySelector("#admin-status");
 const closeAdminButton = document.querySelector("#close-admin");
@@ -63,73 +32,12 @@ const logoutAdminButton = document.querySelector("#logout-admin");
 
 let currentPostId = "";
 let editingPostId = "";
-let posts = loadPosts();
-let subscribers = loadSubscribers();
-let adminAccount = loadAdminAccount();
-let isAdminLoggedIn =
-  Boolean(adminAccount) && sessionStorage.getItem(ADMIN_SESSION_KEY) === "true";
-
-function loadPosts() {
-  const savedPosts = localStorage.getItem(STORAGE_KEY);
-
-  if (!savedPosts) {
-    return defaultPosts;
-  }
-
-  try {
-    const parsedPosts = JSON.parse(savedPosts);
-    return Array.isArray(parsedPosts) ? parsedPosts : defaultPosts;
-  } catch {
-    return defaultPosts;
-  }
-}
-
-function savePosts() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(posts));
-}
-
-function loadSubscribers() {
-  const savedSubscribers = localStorage.getItem(SUBSCRIBERS_KEY);
-
-  if (!savedSubscribers) {
-    return [];
-  }
-
-  try {
-    const parsedSubscribers = JSON.parse(savedSubscribers);
-    return Array.isArray(parsedSubscribers) ? parsedSubscribers : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveSubscribers() {
-  localStorage.setItem(SUBSCRIBERS_KEY, JSON.stringify(subscribers));
-}
-
-function loadAdminAccount() {
-  const savedAccount = localStorage.getItem(ADMIN_KEY);
-
-  if (!savedAccount) {
-    return null;
-  }
-
-  try {
-    const parsedAccount = JSON.parse(savedAccount);
-    return parsedAccount?.username && parsedAccount?.salt && parsedAccount?.hash
-      ? parsedAccount
-      : null;
-  } catch {
-    return null;
-  }
-}
-
-function saveAdminAccount(account) {
-  localStorage.setItem(ADMIN_KEY, JSON.stringify(account));
-}
+let posts = [];
+let session = null;
+let isAdmin = false;
 
 function escapeHtml(value) {
-  return value
+  return String(value ?? "")
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
@@ -137,52 +45,66 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
-function toHex(buffer) {
-  return [...new Uint8Array(buffer)]
-    .map((value) => value.toString(16).padStart(2, "0"))
-    .join("");
+function renderSetupError() {
+  postsElement.innerHTML = "";
+  statsElement.textContent = "0";
+  articleElement.innerHTML = `
+    <div class="article-body">
+      <p>Supabase 설정이 필요합니다.</p>
+      <p><code>config.js</code>에 프로젝트 URL과 anon key를 입력하세요.</p>
+    </div>
+  `;
 }
 
-function createSalt() {
-  const salt = globalThis.crypto?.getRandomValues
-    ? crypto.getRandomValues(new Uint8Array(16))
-    : new Uint8Array(
-        Array.from({ length: 16 }, () => Math.floor(Math.random() * 256)),
-      );
-
-  return [...salt].map((value) => value.toString(16).padStart(2, "0")).join("");
+function getHashPostId() {
+  try {
+    return decodeURIComponent(window.location.hash.slice(1));
+  } catch {
+    window.location.hash = "";
+    return "";
+  }
 }
 
-function getPasswordHashAlgorithm() {
-  return globalThis.crypto?.subtle ? "sha256" : "";
+function normalizePost(row) {
+  return {
+    id: row.id,
+    title: row.title,
+    body: row.body
+      .split(/\n{2,}/)
+      .map((paragraph) => paragraph.trim())
+      .filter(Boolean),
+    rawBody: row.body,
+    date: new Date(row.published_at ?? row.created_at).toISOString().slice(0, 10),
+    publishedAt: row.published_at,
+  };
 }
 
-async function hashPassword(
-  password,
-  salt,
-  algorithm = getPasswordHashAlgorithm(),
-) {
-  const data = new TextEncoder().encode(`${salt}:${password}`);
-
-  if (algorithm !== "sha256") {
-    throw new Error("Web Crypto is unavailable.");
+async function loadPosts() {
+  if (!isConfigured) {
+    renderSetupError();
+    return;
   }
 
-  const hash = await crypto.subtle.digest("SHA-256", data);
-  return toHex(hash);
+  const { data, error } = await supabaseClient
+    .from("posts")
+    .select("id,title,body,created_at,published_at")
+    .order("published_at", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    articleElement.innerHTML = `<p>${escapeHtml(error.message)}</p>`;
+    return;
+  }
+
+  posts = data.map(normalizePost);
+  render();
 }
 
 function getFilteredPosts() {
   const query = searchElement.value.trim().toLowerCase();
 
   return posts.filter((post) => {
-    const searchableText = [
-      post.id,
-      post.title,
-      post.date,
-      post.tags.join(" "),
-      post.body.join(" "),
-    ]
+    const searchableText = [post.id, post.title, post.date, post.rawBody]
       .join(" ")
       .toLowerCase();
 
@@ -217,7 +139,7 @@ function renderArticle(post) {
 
   articleElement.innerHTML = `
     <div class="article-meta">
-      <time datetime="${escapeHtml(post.date.replaceAll(".", "-"))}">${escapeHtml(post.date)}</time>
+      <time datetime="${escapeHtml(post.date)}">${escapeHtml(post.date)}</time>
     </div>
     <h2>${escapeHtml(post.title)}</h2>
     <div class="article-body">
@@ -226,23 +148,15 @@ function renderArticle(post) {
     <div class="article-footer">
       <a class="article-link" href="#${encodeURIComponent(post.id)}">링크</a>
       ${
-        isAdminLoggedIn
+        isAdmin
           ? `
-            <button class="nav-button" type="button" data-edit-id="${escapeHtml(post.id)}">
-              수정
-            </button>
-            <button class="nav-button" type="button" data-delete-id="${escapeHtml(post.id)}">
-              삭제
-            </button>
+            <button class="nav-button" type="button" data-edit-id="${escapeHtml(post.id)}">수정</button>
+            <button class="nav-button" type="button" data-delete-id="${escapeHtml(post.id)}">삭제</button>
           `
           : ""
       }
-      <button class="nav-button" type="button" data-nav-id="${escapeHtml(previousPost?.id ?? "")}" ${previousPost ? "" : "disabled"}>
-        이전
-      </button>
-      <button class="nav-button" type="button" data-nav-id="${escapeHtml(nextPost?.id ?? "")}" ${nextPost ? "" : "disabled"}>
-        다음
-      </button>
+      <button class="nav-button" type="button" data-nav-id="${escapeHtml(previousPost?.id ?? "")}" ${previousPost ? "" : "disabled"}>이전</button>
+      <button class="nav-button" type="button" data-nav-id="${escapeHtml(nextPost?.id ?? "")}" ${nextPost ? "" : "disabled"}>다음</button>
     </div>
   `;
 }
@@ -288,28 +202,6 @@ function selectPost(postId, shouldUpdateHash = true) {
   render();
 }
 
-function getHashPostId() {
-  try {
-    return decodeURIComponent(window.location.hash.slice(1));
-  } catch {
-    window.location.hash = "";
-    return "";
-  }
-}
-
-function today() {
-  const date = new Date();
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-
-  return `${year}.${month}.${day}`;
-}
-
-function createPostId() {
-  return `post-${Date.now().toString(36)}`;
-}
-
 function openEditor(post = null) {
   if (!requireAdmin()) {
     return;
@@ -317,7 +209,7 @@ function openEditor(post = null) {
 
   editingPostId = post?.id ?? "";
   editorTitle.value = post?.title ?? "";
-  editorBody.value = post?.body.join("\n\n") ?? "";
+  editorBody.value = post?.rawBody ?? "";
   editorElement.hidden = false;
   editorTitle.focus();
 }
@@ -328,7 +220,7 @@ function closeEditor() {
   editorElement.hidden = true;
 }
 
-function saveEditedPost(event) {
+async function saveEditedPost(event) {
   event.preventDefault();
 
   if (!requireAdmin()) {
@@ -336,73 +228,79 @@ function saveEditedPost(event) {
   }
 
   const title = editorTitle.value.trim();
-  const body = editorBody.value
-    .trim()
-    .split(/\n{2,}/)
-    .map((paragraph) => paragraph.trim())
-    .filter(Boolean);
+  const body = editorBody.value.trim();
 
-  if (!title || body.length === 0) {
+  if (!title || !body) {
     return;
   }
 
-  const existingPost = posts.find((post) => post.id === editingPostId);
-  const isNewPost = !existingPost;
-  const post = {
-    id: existingPost?.id ?? createPostId(),
+  const payload = {
     title,
-    date: existingPost?.date ?? today(),
-    tags: [],
     body,
+    published_at: new Date().toISOString(),
   };
+  const isNewPost = !editingPostId;
+  const query = isNewPost
+    ? supabaseClient.from("posts").insert(payload).select("id").single()
+    : supabaseClient
+        .from("posts")
+        .update(payload)
+        .eq("id", editingPostId)
+        .select("id")
+        .single();
+  const { data, error } = await query;
 
-  posts = existingPost
-    ? posts.map((item) => (item.id === existingPost.id ? post : item))
-    : [post, ...posts];
+  if (error) {
+    window.alert(error.message);
+    return;
+  }
 
-  savePosts();
   closeEditor();
   searchElement.value = "";
-  selectPost(post.id);
+  currentPostId = data.id;
+  await loadPosts();
+  selectPost(data.id);
 
   if (isNewPost) {
-    notifySubscribers(post);
+    await notifySubscribers(data.id);
   }
 }
 
-function subscribeByEmail(event) {
+async function subscribeByEmail(event) {
   event.preventDefault();
 
   const email = subscriberEmail.value.trim().toLowerCase();
 
-  if (!email) {
+  if (!email || !isConfigured) {
     return;
   }
 
-  if (!subscribers.includes(email)) {
-    subscribers = [...subscribers, email];
-    saveSubscribers();
+  const { error } = await supabaseClient.from("subscribers").insert({ email });
+
+  if (error && error.code !== "23505") {
+    subscribeStatus.textContent = "구독에 실패했습니다.";
+    return;
   }
 
   subscriberEmail.value = "";
   subscribeStatus.textContent = "구독되었습니다.";
 }
 
-function notifySubscribers(post) {
-  if (subscribers.length === 0) {
+async function notifySubscribers(postId) {
+  const { data } = await supabaseClient.auth.getSession();
+  const token = data.session?.access_token;
+
+  if (!token) {
     return;
   }
 
-  const postUrl = `${window.location.href.split("#")[0]}#${encodeURIComponent(post.id)}`;
-  const subject = encodeURIComponent(`[블로그] ${post.title}`);
-  const body = encodeURIComponent(`${post.title}\n\n${post.body[0] ?? ""}\n\n${postUrl}`);
-  const bcc = encodeURIComponent(subscribers.join(","));
-  const mailtoUrl = `mailto:?bcc=${bcc}&subject=${subject}&body=${body}`;
-
-  window.location.href = mailtoUrl;
+  await supabaseClient.functions.invoke("notify-subscribers", {
+    body: { post_id: postId, site_url: window.location.href.split("#")[0] },
+    headers: { Authorization: `Bearer ${token}` },
+  });
 }
 
-function deletePost(postId) {
+async function deletePost(postId) {
   if (!requireAdmin()) {
     return;
   }
@@ -411,44 +309,34 @@ function deletePost(postId) {
     return;
   }
 
-  posts = posts.filter((post) => post.id !== postId);
-  savePosts();
-  currentPostId = posts[0]?.id ?? "";
+  const { error } = await supabaseClient.from("posts").delete().eq("id", postId);
 
-  if (currentPostId) {
-    window.location.hash = encodeURIComponent(currentPostId);
-  } else {
-    window.location.hash = "";
-    render();
+  if (error) {
+    window.alert(error.message);
+    return;
   }
+
+  currentPostId = "";
+  await loadPosts();
 }
 
 function updateAdminControls() {
-  newPostButton.hidden = !isAdminLoggedIn;
+  newPostButton.hidden = !isAdmin;
 
-  if (!isAdminLoggedIn) {
+  if (!isAdmin) {
     closeEditor();
   }
 }
 
 function updateAdminPanel() {
-  const hasAccount = Boolean(adminAccount);
-
-  adminTitle.textContent = isAdminLoggedIn
-    ? `로그인됨: ${adminAccount.username}`
-    : hasAccount
-      ? "로그인"
-      : "계정 생성";
-  adminSubmit.textContent = hasAccount ? "로그인" : "생성";
-  adminForm.hidden = isAdminLoggedIn;
-  logoutAdminButton.hidden = !isAdminLoggedIn;
-  adminUsername.value = "";
+  adminTitle.textContent = isAdmin
+    ? `로그인됨: ${session.user.email}`
+    : "관리자 로그인";
+  adminSubmit.textContent = "로그인";
+  adminForm.hidden = isAdmin;
+  logoutAdminButton.hidden = !isAdmin;
+  adminEmail.value = "";
   adminPassword.value = "";
-  adminPasswordConfirm.value = "";
-  adminPasswordConfirm.hidden = hasAccount || isAdminLoggedIn;
-  adminPasswordConfirm.required = !hasAccount && !isAdminLoggedIn;
-  adminUsername.autocomplete = hasAccount ? "username" : "new-username";
-  adminPassword.autocomplete = hasAccount ? "current-password" : "new-password";
 }
 
 function openAdminPanel(message = "") {
@@ -457,10 +345,10 @@ function openAdminPanel(message = "") {
   adminPanel.hidden = false;
   pageElement.inert = true;
 
-  if (!isAdminLoggedIn) {
-    adminUsername.focus();
-  } else {
+  if (isAdmin) {
     logoutAdminButton.focus();
+  } else {
+    adminEmail.focus();
   }
 }
 
@@ -471,7 +359,7 @@ function closeAdminPanel() {
 }
 
 function requireAdmin() {
-  if (isAdminLoggedIn) {
+  if (isAdmin) {
     return true;
   }
 
@@ -479,73 +367,73 @@ function requireAdmin() {
   return false;
 }
 
+async function refreshSession() {
+  if (!isConfigured) {
+    updateAdminControls();
+    return;
+  }
+
+  const { data } = await supabaseClient.auth.getSession();
+  session = data.session;
+
+  if (!session) {
+    isAdmin = false;
+    updateAdminControls();
+    render();
+    return;
+  }
+
+  const { data: adminRow } = await supabaseClient
+    .from("admin_users")
+    .select("user_id")
+    .eq("user_id", session.user.id)
+    .maybeSingle();
+
+  isAdmin = Boolean(adminRow);
+  updateAdminControls();
+  render();
+}
+
 async function handleAdminSubmit(event) {
   event.preventDefault();
 
-  const username = adminUsername.value.trim();
+  const email = adminEmail.value.trim();
   const password = adminPassword.value;
-  const passwordConfirm = adminPasswordConfirm.value;
 
-  if (!username || !password) {
+  if (!email || !password || !isConfigured) {
     return;
   }
 
-  if (!adminAccount) {
-    if (password !== passwordConfirm) {
-      adminStatus.textContent = "비밀번호가 일치하지 않습니다.";
-      return;
-    }
+  const { data, error } = await supabaseClient.auth.signInWithPassword({
+    email,
+    password,
+  });
 
-    const salt = createSalt();
-    const algorithm = getPasswordHashAlgorithm();
+  if (error) {
+    adminStatus.textContent = "로그인에 실패했습니다.";
+    return;
+  }
 
-    if (!algorithm) {
-      adminStatus.textContent = "이 브라우저에서는 보안 해시를 사용할 수 없습니다.";
-      return;
-    }
+  session = data.session;
+  await refreshSession();
 
-    const hash = await hashPassword(password, salt, algorithm);
-
-    adminAccount = { username, salt, hash, algorithm };
-    saveAdminAccount(adminAccount);
-    isAdminLoggedIn = true;
-    sessionStorage.setItem(ADMIN_SESSION_KEY, "true");
+  if (!isAdmin) {
+    await supabaseClient.auth.signOut();
+    session = null;
+    adminStatus.textContent = "관리자 권한이 없습니다.";
     updateAdminControls();
-    updateAdminPanel();
-    render();
-    adminStatus.textContent = "계정이 생성되었습니다.";
-    window.setTimeout(closeAdminPanel, 450);
     return;
   }
 
-  let hash = "";
-
-  try {
-    hash = await hashPassword(password, adminAccount.salt, adminAccount.algorithm);
-  } catch {
-    adminStatus.textContent = "이 브라우저에서는 로그인할 수 없습니다.";
-    return;
-  }
-  const isValid =
-    username === adminAccount.username && hash === adminAccount.hash;
-
-  if (!isValid) {
-    adminStatus.textContent = "아이디 또는 비밀번호가 맞지 않습니다.";
-    return;
-  }
-
-  isAdminLoggedIn = true;
-  sessionStorage.setItem(ADMIN_SESSION_KEY, "true");
-  updateAdminControls();
   updateAdminPanel();
-  render();
   adminStatus.textContent = "로그인되었습니다.";
   window.setTimeout(closeAdminPanel, 450);
 }
 
-function logoutAdmin() {
-  isAdminLoggedIn = false;
-  sessionStorage.removeItem(ADMIN_SESSION_KEY);
+async function logoutAdmin() {
+  await supabaseClient.auth.signOut();
+  session = null;
+  isAdmin = false;
   updateAdminControls();
   updateAdminPanel();
   render();
@@ -582,7 +470,7 @@ articleElement.addEventListener("click", (event) => {
   }
 
   if (deleteButton) {
-    deletePost(deleteButton.dataset.deleteId);
+    void deletePost(deleteButton.dataset.deleteId);
     return;
   }
 
@@ -599,15 +487,21 @@ cancelEditButton.addEventListener("click", () => {
   closeEditor();
 });
 
-editorForm.addEventListener("submit", saveEditedPost);
+editorForm.addEventListener("submit", (event) => {
+  void saveEditedPost(event);
+});
 
-subscribeForm.addEventListener("submit", subscribeByEmail);
+subscribeForm.addEventListener("submit", (event) => {
+  void subscribeByEmail(event);
+});
 
 adminForm.addEventListener("submit", (event) => {
   void handleAdminSubmit(event);
 });
 
-logoutAdminButton.addEventListener("click", logoutAdmin);
+logoutAdminButton.addEventListener("click", () => {
+  void logoutAdmin();
+});
 
 closeAdminButton.addEventListener("click", closeAdminPanel);
 
@@ -631,5 +525,13 @@ window.addEventListener("hashchange", () => {
   selectPost(getHashPostId(), false);
 });
 
-updateAdminControls();
-selectPost(getHashPostId(), false);
+if (isConfigured) {
+  supabaseClient.auth.onAuthStateChange(() => {
+    void refreshSession();
+  });
+}
+
+void refreshSession();
+void loadPosts().then(() => {
+  selectPost(getHashPostId(), false);
+});
