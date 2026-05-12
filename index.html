@@ -6,14 +6,14 @@
     <meta name="referrer" content="no-referrer" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self'; connect-src 'self' https://ebtwconvpishorpdwqvb.supabase.co; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; upgrade-insecure-requests"
+      content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self'; connect-src 'self' https://ebtwconvpishorpdwqvb.supabase.co; img-src 'self' data: https://ebtwconvpishorpdwqvb.supabase.co; media-src 'self' https://ebtwconvpishorpdwqvb.supabase.co; object-src 'none'; base-uri 'none'; form-action 'self'; upgrade-insecure-requests"
     />
     <title>블로그</title>
     <meta
       name="description"
       content="짧은 기록을 담는 미니멀 개인 블로그"
     />
-    <link rel="stylesheet" href="./styles.css?v=20260513-archive" />
+    <link rel="stylesheet" href="./styles.css?v=20260513-editor" />
   </head>
   <body>
     <main class="page">
@@ -45,7 +45,23 @@
         <section id="editor" class="editor" aria-label="글쓰기" hidden>
           <form id="editor-form">
             <input id="editor-title" type="text" placeholder="제목" required />
+            <div class="editor-toolbar" aria-label="서식">
+              <button type="button" data-format="heading">H</button>
+              <button type="button" data-format="bold">B</button>
+              <button type="button" data-format="italic">I</button>
+              <button type="button" data-format="quote">인용</button>
+              <button type="button" data-format="link">링크</button>
+              <label class="file-button">
+                이미지
+                <input id="editor-image" type="file" accept="image/*" hidden />
+              </label>
+              <label class="file-button">
+                영상
+                <input id="editor-video" type="file" accept="video/*" hidden />
+              </label>
+            </div>
             <textarea id="editor-body" placeholder="본문" required></textarea>
+            <p id="editor-status" class="small-text" aria-live="polite"></p>
             <div class="editor-actions">
               <button type="submit">저장</button>
               <button id="cancel-edit" type="button">취소</button>
@@ -108,6 +124,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="./config.js"></script>
-    <script src="./script.js?v=20260513-admin"></script>
+    <script src="./script.js?v=20260513-editor"></script>
   </body>
 </html>

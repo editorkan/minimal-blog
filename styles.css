@@ -30,6 +30,7 @@ body {
 a,
 button,
 input,
+label,
 textarea {
   color: inherit;
 }
@@ -168,6 +169,8 @@ textarea {
 
 .plain-button,
 .editor-actions button,
+.editor-toolbar button,
+.file-button,
 .article-link,
 .nav-button {
   border: 0;
@@ -176,6 +179,13 @@ textarea {
   text-decoration: underline;
   text-underline-offset: 4px;
   cursor: pointer;
+}
+
+.editor-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 13px;
+  font-size: 0.82rem;
 }
 
 .editor {
@@ -213,8 +223,44 @@ textarea {
   font-weight: 400;
 }
 
+.article-body h3 {
+  margin: 44px 0 18px;
+  font-size: 1.05rem;
+  line-height: 1.55;
+  font-weight: 400;
+}
+
 .article-body p {
   margin: 0 0 26px;
+}
+
+.article-body blockquote {
+  margin: 0 0 26px;
+  padding-left: 18px;
+  border-left: 1px solid var(--text);
+}
+
+.article-body figure {
+  margin: 42px 0;
+}
+
+.article-body img,
+.article-body video {
+  display: block;
+  width: 100%;
+  max-height: 78vh;
+  object-fit: contain;
+  background: var(--bg);
+}
+
+.article-body figcaption {
+  margin-top: 8px;
+  font-size: 0.82rem;
+}
+
+.article-body a {
+  text-decoration: underline;
+  text-underline-offset: 4px;
 }
 
 .article-footer {

@@ -79,7 +79,7 @@ Deno.serve(async (request) => {
   }
 
   const postUrl = `${site_url}#${encodeURIComponent(post.id)}`;
-  const excerpt = post.body.split(/\n{2,}/)[0] ?? "";
+  const excerpt = getExcerpt(post.body);
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
@@ -134,6 +134,21 @@ function isAllowedSiteUrl(siteUrl: string) {
   } catch {
     return false;
   }
+}
+
+function getExcerpt(body: string) {
+  return body
+    .split(/\n{2,}/)
+    .map((block) => block.trim())
+    .filter((block) => block && !block.startsWith("![") && !block.startsWith("@[video"))
+    .map((block) =>
+      block
+        .replace(/^#{2,3}\s+/, "")
+        .replace(/^\s*>\s?/gm, "")
+        .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+        .replace(/\*\*([^*]+)\*\*/g, "$1")
+        .replace(/\*([^*]+)\*/g, "$1"),
+    )[0] ?? "";
 }
 
 function json(body: unknown, corsHeaders: Record<string, string>, status = 200) {

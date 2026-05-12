@@ -16,6 +16,10 @@ const editorElement = document.querySelector("#editor");
 const editorForm = document.querySelector("#editor-form");
 const editorTitle = document.querySelector("#editor-title");
 const editorBody = document.querySelector("#editor-body");
+const editorToolbar = document.querySelector(".editor-toolbar");
+const editorImage = document.querySelector("#editor-image");
+const editorVideo = document.querySelector("#editor-video");
+const editorStatus = document.querySelector("#editor-status");
 const cancelEditButton = document.querySelector("#cancel-edit");
 const subscribeForm = document.querySelector("#subscribe-form");
 const subscriberEmail = document.querySelector("#subscriber-email");
@@ -35,6 +39,8 @@ let editingPostId = "";
 let posts = [];
 let session = null;
 let isAdmin = false;
+const mediaBucket = "post-media";
+const maxMediaBytes = 100 * 1024 * 1024;
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -43,6 +49,127 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function isSafeUrl(value, options = {}) {
+  try {
+    const url = new URL(String(value), window.location.origin);
+    const allowedProtocols = options.media
+      ? ["http:", "https:"]
+      : ["http:", "https:", "mailto:"];
+
+    if (!allowedProtocols.includes(url.protocol)) {
+      return false;
+    }
+
+    if (!options.media) {
+      return true;
+    }
+
+    const allowedMediaOrigins = [
+      window.location.origin,
+      supabaseUrl ? new URL(supabaseUrl).origin : "",
+    ].filter(Boolean);
+
+    return allowedMediaOrigins.includes(url.origin);
+  } catch {
+    return false;
+  }
+}
+
+function renderInlineStyle(value) {
+  return escapeHtml(value)
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/(^|[^*])\*([^*]+)\*/g, "$1<em>$2</em>");
+}
+
+function renderInline(value) {
+  const source = String(value ?? "");
+  const linkPattern = /\[([^\]]+)\]\(([^)\s]+)\)/g;
+  let output = "";
+  let lastIndex = 0;
+  let match = linkPattern.exec(source);
+
+  while (match) {
+    output += renderInlineStyle(source.slice(lastIndex, match.index));
+
+    const [, label, url] = match;
+    output += isSafeUrl(url)
+      ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${renderInlineStyle(label)}</a>`
+      : renderInlineStyle(label);
+
+    lastIndex = linkPattern.lastIndex;
+    match = linkPattern.exec(source);
+  }
+
+  output += renderInlineStyle(source.slice(lastIndex));
+  return output;
+}
+
+function renderMediaBlock(block) {
+  const image = block.match(/^!\[([^\]]*)\]\(([^)\s]+)\)$/);
+
+  if (image && isSafeUrl(image[2], { media: true })) {
+    const alt = image[1].trim();
+
+    return `
+      <figure>
+        <img src="${escapeHtml(image[2])}" alt="${escapeHtml(alt)}" loading="lazy" />
+        ${alt ? `<figcaption>${escapeHtml(alt)}</figcaption>` : ""}
+      </figure>
+    `;
+  }
+
+  const video = block.match(/^@\[video(?::([^\]]+))?\]\(([^)\s]+)\)$/);
+
+  if (video && isSafeUrl(video[2], { media: true })) {
+    const caption = video[1]?.trim() ?? "";
+
+    return `
+      <figure>
+        <video src="${escapeHtml(video[2])}" controls preload="metadata"></video>
+        ${caption ? `<figcaption>${escapeHtml(caption)}</figcaption>` : ""}
+      </figure>
+    `;
+  }
+
+  return "";
+}
+
+function renderPostBody(rawBody) {
+  return String(rawBody ?? "")
+    .split(/\n{2,}/)
+    .map((block) => block.trim())
+    .filter(Boolean)
+    .map((block) => {
+      const media = renderMediaBlock(block);
+
+      if (media) {
+        return media;
+      }
+
+      if (/^#{2,3}\s+/.test(block)) {
+        return `<h3>${renderInline(block.replace(/^#{2,3}\s+/, ""))}</h3>`;
+      }
+
+      if (block.split("\n").every((line) => line.trim().startsWith(">"))) {
+        const quote = block
+          .split("\n")
+          .map((line) => line.replace(/^\s*>\s?/, ""))
+          .join("\n");
+
+        return `<blockquote>${quote
+          .split("\n")
+          .map((line) => `<p>${renderInline(line)}</p>`)
+          .join("")}</blockquote>`;
+      }
+
+      return `<p>${block
+        .split("\n")
+        .map((line) => renderInline(line))
+        .join("<br>")}</p>`;
+    })
+    .join("");
 }
 
 function renderSetupError() {
@@ -181,7 +308,7 @@ function renderArticle(post) {
     </div>
     <h2>${escapeHtml(post.title)}</h2>
     <div class="article-body">
-      ${post.body.map((paragraph) => `<p>${escapeHtml(paragraph)}</p>`).join("")}
+      ${renderPostBody(post.rawBody)}
     </div>
     <div class="article-footer">
       ${
@@ -254,7 +381,147 @@ function openEditor(post = null) {
 function closeEditor() {
   editingPostId = "";
   editorForm.reset();
+  editorStatus.textContent = "";
   editorElement.hidden = true;
+}
+
+function setEditorStatus(message) {
+  editorStatus.textContent = message;
+}
+
+function insertEditorText(text, options = {}) {
+  const start = editorBody.selectionStart;
+  const end = editorBody.selectionEnd;
+  const current = editorBody.value;
+  const prefix = options.block && start > 0 && current[start - 1] !== "\n" ? "\n\n" : "";
+  const suffix = options.block && current[end] && current[end] !== "\n" ? "\n\n" : "";
+
+  editorBody.value = `${current.slice(0, start)}${prefix}${text}${suffix}${current.slice(end)}`;
+  editorBody.focus();
+  editorBody.setSelectionRange(
+    start + prefix.length + text.length,
+    start + prefix.length + text.length,
+  );
+}
+
+function wrapEditorSelection(before, after = before, fallback = "") {
+  const start = editorBody.selectionStart;
+  const end = editorBody.selectionEnd;
+  const current = editorBody.value;
+  const selected = current.slice(start, end) || fallback;
+  const next = `${before}${selected}${after}`;
+
+  editorBody.value = `${current.slice(0, start)}${next}${current.slice(end)}`;
+  editorBody.focus();
+  editorBody.setSelectionRange(start + before.length, start + before.length + selected.length);
+}
+
+function quoteEditorSelection() {
+  const start = editorBody.selectionStart;
+  const end = editorBody.selectionEnd;
+  const current = editorBody.value;
+  const selected = current.slice(start, end) || "인용";
+  const next = selected
+    .split("\n")
+    .map((line) => `> ${line}`)
+    .join("\n");
+
+  editorBody.value = `${current.slice(0, start)}${next}${current.slice(end)}`;
+  editorBody.focus();
+  editorBody.setSelectionRange(start, start + next.length);
+}
+
+function applyEditorFormat(format) {
+  if (!requireAdmin()) {
+    return;
+  }
+
+  if (format === "heading") {
+    insertEditorText("## 소제목", { block: true });
+    return;
+  }
+
+  if (format === "bold") {
+    wrapEditorSelection("**", "**", "강조");
+    return;
+  }
+
+  if (format === "italic") {
+    wrapEditorSelection("*", "*", "기울임");
+    return;
+  }
+
+  if (format === "quote") {
+    quoteEditorSelection();
+    return;
+  }
+
+  if (format === "link") {
+    const url = window.prompt("URL");
+
+    if (!url || !isSafeUrl(url)) {
+      return;
+    }
+
+    const label = editorBody.value.slice(
+      editorBody.selectionStart,
+      editorBody.selectionEnd,
+    ) || "링크";
+    wrapEditorSelection("[", `](${url})`, label);
+  }
+}
+
+function getSafeFileName(file) {
+  const extension = file.name.split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const id = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+
+  return extension ? `${id}.${extension}` : id;
+}
+
+function getSafeCaption(file) {
+  return file.name.replace(/[\[\]\(\)\n\r]/g, " ").trim() || "첨부";
+}
+
+async function uploadEditorMedia(file, type) {
+  if (!requireAdmin() || !file || !isConfigured) {
+    return;
+  }
+
+  if (!file.type.startsWith(`${type}/`)) {
+    setEditorStatus("파일 형식이 맞지 않습니다.");
+    return;
+  }
+
+  if (file.size > maxMediaBytes) {
+    setEditorStatus("100MB 이하 파일만 첨부할 수 있습니다.");
+    return;
+  }
+
+  setEditorStatus("업로드 중...");
+
+  const path = `${session.user.id}/${getSafeFileName(file)}`;
+  const { error } = await supabaseClient.storage
+    .from(mediaBucket)
+    .upload(path, file, {
+      cacheControl: "31536000",
+      contentType: file.type,
+      upsert: false,
+    });
+
+  if (error) {
+    setEditorStatus("업로드에 실패했습니다. Supabase Storage 설정을 확인하세요.");
+    return;
+  }
+
+  const { data } = supabaseClient.storage.from(mediaBucket).getPublicUrl(path);
+  const caption = getSafeCaption(file);
+  const marker =
+    type === "image"
+      ? `![${caption}](${data.publicUrl})`
+      : `@[video:${caption}](${data.publicUrl})`;
+
+  insertEditorText(marker, { block: true });
+  setEditorStatus("첨부되었습니다.");
 }
 
 async function saveEditedPost(event) {
@@ -299,7 +566,11 @@ async function saveEditedPost(event) {
   selectPost(data.id);
 
   if (isNewPost) {
-    await notifySubscribers(data.id);
+    const notification = await notifySubscribers(data.id);
+
+    if (!notification.ok) {
+      window.alert("글은 저장됐지만 이메일 발송은 실패했습니다.");
+    }
   }
 }
 
@@ -328,13 +599,18 @@ async function notifySubscribers(postId) {
   const token = data.session?.access_token;
 
   if (!token) {
-    return;
+    return { ok: false };
   }
 
-  await supabaseClient.functions.invoke("notify-subscribers", {
-    body: { post_id: postId, site_url: window.location.href.split("#")[0] },
+  const { error } = await supabaseClient.functions.invoke("notify-subscribers", {
+    body: {
+      post_id: postId,
+      site_url: `${window.location.origin}${window.location.pathname}`,
+    },
     headers: { Authorization: `Bearer ${token}` },
   });
+
+  return { ok: !error };
 }
 
 async function deletePost(postId) {
@@ -523,6 +799,28 @@ newPostButton.addEventListener("click", () => {
 
 cancelEditButton.addEventListener("click", () => {
   closeEditor();
+});
+
+editorToolbar.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-format]");
+
+  if (!button) {
+    return;
+  }
+
+  applyEditorFormat(button.dataset.format);
+});
+
+editorImage.addEventListener("change", () => {
+  const file = editorImage.files?.[0];
+  editorImage.value = "";
+  void uploadEditorMedia(file, "image");
+});
+
+editorVideo.addEventListener("change", () => {
+  const file = editorVideo.files?.[0];
+  editorVideo.value = "";
+  void uploadEditorMedia(file, "video");
 });
 
 editorForm.addEventListener("submit", (event) => {

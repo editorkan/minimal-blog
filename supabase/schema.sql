@@ -102,6 +102,63 @@ for insert
 to anon, authenticated
 with check (true);
 
+insert into storage.buckets (
+  id,
+  name,
+  public,
+  file_size_limit,
+  allowed_mime_types
+)
+values (
+  'post-media',
+  'post-media',
+  true,
+  104857600,
+  array[
+    'image/jpeg',
+    'image/png',
+    'image/gif',
+    'image/webp',
+    'video/mp4',
+    'video/webm',
+    'video/quicktime'
+  ]
+)
+on conflict (id) do update
+set
+  public = excluded.public,
+  file_size_limit = excluded.file_size_limit,
+  allowed_mime_types = excluded.allowed_mime_types;
+
+drop policy if exists "Public can read post media" on storage.objects;
+create policy "Public can read post media"
+on storage.objects
+for select
+to anon, authenticated
+using (bucket_id = 'post-media');
+
+drop policy if exists "Admins can upload post media" on storage.objects;
+create policy "Admins can upload post media"
+on storage.objects
+for insert
+to authenticated
+with check (bucket_id = 'post-media' and public.is_admin());
+
+drop policy if exists "Admins can update post media" on storage.objects;
+create policy "Admins can update post media"
+on storage.objects
+for update
+to authenticated
+using (bucket_id = 'post-media' and public.is_admin())
+with check (bucket_id = 'post-media' and public.is_admin());
+
+drop policy if exists "Admins can delete post media" on storage.objects;
+create policy "Admins can delete post media"
+on storage.objects
+for delete
+to authenticated
+using (bucket_id = 'post-media' and public.is_admin());
+
 insert into public.posts (title, body, published_at)
 values
   ('시작', '무언가를 오래 남기기 위해 많은 형식이 필요하지는 않다.

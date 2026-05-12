@@ -11,6 +11,7 @@ GitHub Pages only serves static files. Authentication, authorization, writes, an
 - Public visitors can read published posts and insert their own email into `subscribers`.
 - Public visitors cannot read the subscriber list.
 - Post writes require an authenticated admin user.
+- Media uploads use the `post-media` Supabase Storage bucket. Public visitors can read uploaded media, but only admins can upload, update, or delete media objects.
 - Email delivery is performed by a Supabase Edge Function using server-side secrets.
 - The frontend includes a restrictive Content Security Policy.
 - The email Edge Function should restrict CORS with `ALLOWED_ORIGINS`.
@@ -25,6 +26,7 @@ GitHub Pages only serves static files. Authentication, authorization, writes, an
 ## Deployment Checklist
 
 - Keep `public.posts`, `public.subscribers`, and `public.admin_users` RLS enabled.
+- Keep the `post-media` Storage policies restricted to admin writes.
 - Keep `SUPABASE_SERVICE_ROLE_KEY` only in Supabase Edge Function secrets.
 - Keep `RESEND_API_KEY` only in Supabase Edge Function secrets.
 - Set `ALLOWED_ORIGINS` to the production GitHub Pages URL and custom domain.
