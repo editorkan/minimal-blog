@@ -388,6 +388,7 @@ function openEditor(post = null) {
   setEditorStatus("");
   updateEditorState();
   editorElement.hidden = false;
+  articleElement.hidden = true;
   editorTitle.focus();
 }
 
@@ -402,6 +403,7 @@ function closeEditor() {
   setEditorStatus("");
   updateEditorState();
   editorElement.hidden = true;
+  articleElement.hidden = false;
 }
 
 function setEditorStatus(message) {
