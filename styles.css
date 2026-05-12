@@ -261,37 +261,43 @@ textarea {
 
 @media (max-width: 780px) {
   .page {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr) auto;
     gap: 44px;
     width: min(100% - 32px, 680px);
     padding: 36px 0 72px;
   }
 
   .content,
-  .sidebar,
   .subscription {
-    grid-column: 1;
+    grid-column: 1 / -1;
     grid-row: auto;
   }
 
+  .content {
+    order: 2;
+  }
+
   .sidebar {
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: start;
-    gap: 12px 18px;
+    display: contents;
     position: static;
     font-size: 0.82rem;
   }
 
   .subscription {
+    order: 4;
     gap: 8px;
     font-size: 0.82rem;
   }
 
   .site-name {
+    grid-column: 1;
+    order: 0;
     font-size: 0.95rem;
   }
 
   .sidebar > .plain-button {
+    grid-column: 2;
+    order: 0;
     justify-self: end;
   }
 
@@ -305,7 +311,7 @@ textarea {
   }
 
   .post-list {
-    order: 2;
+    order: 3;
   }
 
   .subscribe-form {
