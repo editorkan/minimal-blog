@@ -25,18 +25,6 @@
           쓰기
         </button>
 
-        <form id="subscribe-form" class="subscribe-form" aria-label="이메일 구독">
-          <input
-            id="subscriber-email"
-            type="email"
-            autocomplete="email"
-            placeholder="email"
-            required
-          />
-          <button type="submit">Subscribe by Email</button>
-        </form>
-        <p id="subscribe-status" class="small-text" aria-live="polite"></p>
-
         <label class="search-field" for="search">
           <input
             id="search"
@@ -66,6 +54,20 @@
         </section>
 
         <article id="article" class="article" aria-live="polite"></article>
+      </section>
+
+      <section class="subscription" aria-label="이메일 구독">
+        <form id="subscribe-form" class="subscribe-form">
+          <input
+            id="subscriber-email"
+            type="email"
+            autocomplete="email"
+            placeholder="email"
+            required
+          />
+          <button type="submit">Subscribe by Email</button>
+        </form>
+        <p id="subscribe-status" class="small-text" aria-live="polite"></p>
       </section>
     </main>
 
