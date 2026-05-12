@@ -482,6 +482,24 @@ function getSafeCaption(file) {
   return file.name.replace(/[\[\]\(\)\n\r]/g, " ").trim() || "첨부";
 }
 
+function getUploadErrorMessage(error) {
+  const message = error?.message ?? "알 수 없는 오류";
+
+  if (/mime|type/i.test(message)) {
+    return `업로드 실패: 허용되지 않은 파일 형식입니다. (${message})`;
+  }
+
+  if (/row-level security|policy|permission|not authorized|unauthorized/i.test(message)) {
+    return `업로드 실패: 관리자 업로드 권한을 확인하세요. (${message})`;
+  }
+
+  if (/bucket|not found/i.test(message)) {
+    return `업로드 실패: post-media 버킷을 찾을 수 없습니다. (${message})`;
+  }
+
+  return `업로드 실패: ${message}`;
+}
+
 async function uploadEditorMedia(file, type) {
   if (!requireAdmin() || !file || !isConfigured) {
     return;
@@ -509,7 +527,7 @@ async function uploadEditorMedia(file, type) {
     });
 
   if (error) {
-    setEditorStatus("업로드에 실패했습니다. Supabase Storage 설정을 확인하세요.");
+    setEditorStatus(getUploadErrorMessage(error));
     return;
   }
 

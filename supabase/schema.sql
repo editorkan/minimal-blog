@@ -116,12 +116,19 @@ values (
   104857600,
   array[
     'image/jpeg',
+    'image/jpg',
     'image/png',
     'image/gif',
     'image/webp',
+    'image/avif',
+    'image/heic',
+    'image/heif',
     'video/mp4',
     'video/webm',
-    'video/quicktime'
+    'video/quicktime',
+    'video/x-m4v',
+    'video/mpeg',
+    'video/3gpp'
   ]
 )
 on conflict (id) do update
