@@ -165,7 +165,6 @@ function renderArticle(post) {
       ${post.body.map((paragraph) => `<p>${escapeHtml(paragraph)}</p>`).join("")}
     </div>
     <div class="article-footer">
-      <a class="article-link" href="#${encodeURIComponent(post.id)}">링크</a>
       ${
         isAdmin
           ? `
