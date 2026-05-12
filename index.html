@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>블로그</title>
+    <meta
+      name="description"
+      content="짧은 기록을 담는 미니멀 개인 블로그"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="page">
+      <aside class="sidebar" aria-label="블로그 메뉴">
+        <a class="site-name" href="#" aria-label="홈으로">
+          <span>블로그</span>
+        </a>
+        <button id="new-post" class="plain-button admin-only" type="button" hidden>
+          쓰기
+        </button>
+
+        <form id="subscribe-form" class="subscribe-form" aria-label="이메일 구독">
+          <input
+            id="subscriber-email"
+            type="email"
+            autocomplete="email"
+            placeholder="email"
+            required
+          />
+          <button type="submit">Subscribe by Email</button>
+        </form>
+        <p id="subscribe-status" class="small-text" aria-live="polite"></p>
+
+        <label class="search-field" for="search">
+          <input
+            id="search"
+            type="search"
+            autocomplete="off"
+            placeholder="Search this site..."
+          />
+        </label>
+
+        <nav class="post-list" aria-label="글 목록">
+          <p class="small-title">Archive</p>
+          <div id="posts" class="posts"></div>
+          <p id="stats" class="stats"></p>
+        </nav>
+      </aside>
+
+      <section class="content">
+        <section id="editor" class="editor" aria-label="글쓰기" hidden>
+          <form id="editor-form">
+            <input id="editor-title" type="text" placeholder="제목" required />
+            <textarea id="editor-body" placeholder="본문" required></textarea>
+            <div class="editor-actions">
+              <button type="submit">저장</button>
+              <button id="cancel-edit" type="button">취소</button>
+            </div>
+          </form>
+        </section>
+
+        <article id="article" class="article" aria-live="polite"></article>
+      </section>
+    </main>
+
+    <section
+      id="admin-panel"
+      class="admin-panel"
+      role="dialog"
+      aria-modal="true"
+      aria-label="관리자"
+      hidden
+    >
+      <div class="admin-inner">
+        <button id="close-admin" class="plain-button" type="button">닫기</button>
+        <p id="admin-title" class="small-title">관리</p>
+        <form id="admin-form" class="admin-form">
+          <input
+            id="admin-username"
+            type="text"
+            autocomplete="username"
+            placeholder="아이디"
+            required
+          />
+          <input
+            id="admin-password"
+            type="password"
+            autocomplete="current-password"
+            placeholder="비밀번호"
+            required
+          />
+          <input
+            id="admin-password-confirm"
+            type="password"
+            autocomplete="new-password"
+            placeholder="비밀번호 확인"
+            hidden
+          />
+          <button id="admin-submit" type="submit">로그인</button>
+        </form>
+        <button id="logout-admin" class="plain-button" type="button" hidden>
+          로그아웃
+        </button>
+        <p id="admin-status" class="small-text" aria-live="polite"></p>
+      </div>
+    </section>
+
+    <script src="./script.js"></script>
+  </body>
+</html>

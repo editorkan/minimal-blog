@@ -1,0 +1,346 @@
+:root {
+  color-scheme: light;
+  --bg: #ffffff;
+  --text: #000000;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+  font-family:
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    system-ui,
+    sans-serif;
+  font-size: 16px;
+  line-height: 1.75;
+}
+
+a,
+button,
+input,
+textarea {
+  color: inherit;
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+.page {
+  display: grid;
+  grid-template-columns: 132px minmax(0, 680px);
+  gap: 118px;
+  width: min(1080px, calc(100% - 36px));
+  margin: 0 auto;
+  padding: 72px 0 104px;
+}
+
+.content {
+  min-width: 0;
+}
+
+.sidebar {
+  display: grid;
+  align-self: start;
+  gap: 13px;
+  position: sticky;
+  top: 56px;
+  font-size: 0.72rem;
+}
+
+.site-name {
+  text-decoration: none;
+  font-size: 0.86rem;
+  font-weight: 500;
+}
+
+.subscribe-form,
+.editor form,
+.admin-form {
+  display: grid;
+  gap: 7px;
+}
+
+.subscribe-form input,
+.search-field input,
+.editor input,
+.editor textarea,
+.admin-form input {
+  width: 100%;
+  border: 1px solid var(--text);
+  border-radius: 0;
+  background: var(--bg);
+  padding: 3px 5px;
+}
+
+.subscribe-form button {
+  width: fit-content;
+  border: 1px solid var(--text);
+  background: var(--text);
+  color: var(--bg);
+  padding: 3px 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.admin-form button {
+  width: fit-content;
+  border: 1px solid var(--text);
+  background: var(--text);
+  color: var(--bg);
+  padding: 3px 6px;
+  cursor: pointer;
+}
+
+.search-field {
+  display: block;
+  margin-top: 14px;
+}
+
+.post-list {
+  display: grid;
+  gap: 7px;
+}
+
+.small-title,
+.small-text,
+.stats,
+.empty-state {
+  margin: 0;
+  font-size: 0.7rem;
+}
+
+.posts {
+  display: grid;
+  gap: 6px;
+}
+
+.post-button {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+}
+
+.post-button strong,
+.post-button span {
+  font-size: 0.72rem;
+  font-weight: 400;
+}
+
+.post-button:hover strong,
+.post-button[aria-current="true"] strong {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.plain-button,
+.editor-actions button,
+.article-link,
+.nav-button {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  cursor: pointer;
+}
+
+.editor {
+  margin-bottom: 64px;
+}
+
+.editor textarea {
+  min-height: 260px;
+  resize: vertical;
+}
+
+.editor-actions,
+.article-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+}
+
+.article {
+  min-height: 420px;
+}
+
+.article-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 28px;
+  font-size: 0.95rem;
+}
+
+.article h2 {
+  margin: 0 0 28px;
+  font-size: 1.2rem;
+  line-height: 1.45;
+  font-weight: 400;
+}
+
+.article-body p {
+  margin: 0 0 26px;
+}
+
+.article-footer {
+  margin-top: 64px;
+  font-size: 0.95rem;
+}
+
+.nav-button:disabled {
+  cursor: default;
+  text-decoration: none;
+}
+
+.admin-panel {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: var(--bg);
+  z-index: 10;
+}
+
+.admin-panel[hidden] {
+  display: none;
+}
+
+.admin-inner {
+  display: grid;
+  gap: 13px;
+  width: min(220px, calc(100% - 48px));
+  font-size: 0.82rem;
+}
+
+.admin-inner > .plain-button {
+  justify-self: start;
+}
+
+@media (max-width: 980px) {
+  .page {
+    grid-template-columns: 120px minmax(0, 680px);
+    gap: 64px;
+    width: min(900px, calc(100% - 32px));
+  }
+}
+
+@media (max-width: 780px) {
+  .page {
+    grid-template-columns: 1fr;
+    gap: 44px;
+    width: min(100% - 32px, 680px);
+    padding: 36px 0 72px;
+  }
+
+  .sidebar {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 12px 18px;
+    position: static;
+    font-size: 0.82rem;
+  }
+
+  .site-name {
+    font-size: 0.95rem;
+  }
+
+  .sidebar > .plain-button {
+    justify-self: end;
+  }
+
+  .subscribe-form,
+  .small-text,
+  .search-field,
+  .post-list {
+    grid-column: 1 / -1;
+  }
+
+  .subscribe-form {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+  }
+
+  .search-field {
+    margin-top: 0;
+  }
+
+  .small-title,
+  .small-text,
+  .stats,
+  .empty-state,
+  .post-button strong,
+  .post-button span {
+    font-size: 0.8rem;
+  }
+
+  .posts {
+    display: flex;
+    gap: 16px;
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+
+  .post-button {
+    width: auto;
+    min-width: 112px;
+    flex: 0 0 auto;
+  }
+
+  .editor {
+    margin-bottom: 48px;
+  }
+
+  .editor textarea {
+    min-height: 220px;
+  }
+
+  .article-meta {
+    gap: 12px;
+    margin-bottom: 22px;
+    font-size: 0.9rem;
+  }
+
+  .article h2 {
+    margin-bottom: 22px;
+  }
+
+  .article-footer {
+    margin-top: 48px;
+  }
+}
+
+@media (max-width: 420px) {
+  .page {
+    width: min(100% - 24px, 680px);
+    padding-top: 28px;
+  }
+
+  .subscribe-form {
+    grid-template-columns: 1fr;
+  }
+
+  .subscribe-form button {
+    width: 100%;
+  }
+}
