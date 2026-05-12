@@ -76,4 +76,12 @@ Custom domain을 설정한 뒤 GitHub Pages에서 `Enforce HTTPS`를 켭니다.
 
 ## 관리
 
-사이트에서 `Ctrl+R`을 누르면 관리자 로그인 패널이 열립니다. Supabase Auth 계정으로 로그인하고, `admin_users`에 등록된 사용자만 글을 작성/수정/삭제할 수 있습니다.
+데스크톱에서는 `Ctrl+R`을 누르면 관리자 로그인 패널이 열립니다.
+
+모바일에서는 사이트 주소 뒤에 `#admin`을 붙여 접속합니다.
+
+```txt
+https://editorkan.github.io/minimal-blog/#admin
+```
+
+Supabase Auth 계정으로 로그인하고, `admin_users`에 등록된 사용자만 글을 작성/수정/삭제할 수 있습니다.

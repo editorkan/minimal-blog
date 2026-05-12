@@ -58,11 +58,30 @@ function renderSetupError() {
 
 function getHashPostId() {
   try {
-    return decodeURIComponent(window.location.hash.slice(1));
+    const value = decodeURIComponent(window.location.hash.slice(1));
+    return value === "admin" ? "" : value;
   } catch {
     window.location.hash = "";
     return "";
   }
+}
+
+function handleHashRoute() {
+  let hash = "";
+
+  try {
+    hash = decodeURIComponent(window.location.hash.slice(1));
+  } catch {
+    window.location.hash = "";
+    return;
+  }
+
+  if (hash === "admin") {
+    openAdminPanel();
+    return;
+  }
+
+  selectPost(hash, false);
 }
 
 function normalizePost(row) {
@@ -522,7 +541,7 @@ document.addEventListener("keydown", (event) => {
 });
 
 window.addEventListener("hashchange", () => {
-  selectPost(getHashPostId(), false);
+  handleHashRoute();
 });
 
 if (isConfigured) {
@@ -533,5 +552,5 @@ if (isConfigured) {
 
 void refreshSession();
 void loadPosts().then(() => {
-  selectPost(getHashPostId(), false);
+  handleHashRoute();
 });

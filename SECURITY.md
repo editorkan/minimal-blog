@@ -20,7 +20,7 @@ GitHub Pages only serves static files. Authentication, authorization, writes, an
 - The Supabase anon key is public by design. RLS policies must stay enabled.
 - Anyone with GitHub repository write access can change frontend code.
 - `config.js` contains public Supabase project metadata only. Do not put service-role keys, Resend keys, or SMTP credentials in frontend files.
-- `Ctrl+R` is only a hidden entry point, not a security control. Supabase Auth and RLS are the actual controls.
+- `Ctrl+R` and `#admin` are only hidden entry points, not security controls. Supabase Auth and RLS are the actual controls.
 
 ## Deployment Checklist
 
