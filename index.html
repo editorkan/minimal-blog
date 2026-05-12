@@ -13,7 +13,7 @@
       name="description"
       content="짧은 기록을 담는 미니멀 개인 블로그"
     />
-    <link rel="stylesheet" href="./styles.css?v=20260513-editor-ux" />
+    <link rel="stylesheet" href="./styles.css?v=20260513-visual-editor" />
   </head>
   <body>
     <main class="page">
@@ -56,7 +56,15 @@
             </div>
             <input id="editor-image" type="file" accept="image/*" hidden />
             <input id="editor-video" type="file" accept="video/*" hidden />
-            <textarea id="editor-body" placeholder="본문" required></textarea>
+            <div
+              id="editor-surface"
+              class="editor-surface article-body"
+              contenteditable="true"
+              role="textbox"
+              aria-multiline="true"
+              data-placeholder="본문"
+            ></div>
+            <textarea id="editor-body" hidden></textarea>
             <p id="editor-status" class="small-text" aria-live="polite"></p>
             <div class="editor-actions">
               <button type="submit">저장</button>
@@ -120,6 +128,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="./config.js"></script>
-    <script src="./script.js?v=20260513-editor-ux"></script>
+    <script src="./script.js?v=20260513-visual-editor"></script>
   </body>
 </html>

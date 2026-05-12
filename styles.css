@@ -206,10 +206,35 @@ textarea {
   margin-bottom: 64px;
 }
 
-.editor textarea {
+.editor textarea,
+.editor-surface {
   min-height: 260px;
-  overflow: hidden;
-  resize: vertical;
+}
+
+.editor-surface {
+  width: 100%;
+  border: 1px solid var(--text);
+  background: var(--bg);
+  padding: 18px 5px;
+  outline: 0;
+}
+
+.editor-surface:empty::before {
+  content: attr(data-placeholder);
+}
+
+.editor-surface:focus-visible {
+  outline: 1px solid var(--text);
+  outline-offset: 3px;
+}
+
+.editor-surface figure {
+  cursor: default;
+}
+
+.editor-surface img,
+.editor-surface video {
+  margin: 8px 0;
 }
 
 .editor-actions,
@@ -410,7 +435,8 @@ textarea {
     margin-bottom: 48px;
   }
 
-  .editor textarea {
+  .editor textarea,
+  .editor-surface {
     min-height: 220px;
   }
 

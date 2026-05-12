@@ -16,6 +16,7 @@ const editorElement = document.querySelector("#editor");
 const editorForm = document.querySelector("#editor-form");
 const editorTitle = document.querySelector("#editor-title");
 const editorBody = document.querySelector("#editor-body");
+const editorSurface = document.querySelector("#editor-surface");
 const editorToolbar = document.querySelector(".editor-toolbar");
 const editorImage = document.querySelector("#editor-image");
 const editorVideo = document.querySelector("#editor-video");
@@ -41,8 +42,7 @@ let editingPostId = "";
 let posts = [];
 let session = null;
 let isAdmin = false;
-let editorSelection = { start: 0, end: 0 };
-let editorResizeFrame = 0;
+let editorRange = null;
 let activeMediaUploads = 0;
 let mediaUploadToken = 0;
 let isSavingPost = false;
@@ -384,24 +384,21 @@ function openEditor(post = null) {
   isSavingPost = false;
   editingPostId = post?.id ?? "";
   editorTitle.value = post?.title ?? "";
-  editorBody.value = post?.rawBody ?? "";
-  editorSelection = {
-    start: editorBody.value.length,
-    end: editorBody.value.length,
-  };
+  setEditorContent(post?.rawBody ?? "");
   setEditorStatus("");
   updateEditorState();
   editorElement.hidden = false;
   editorTitle.focus();
-  resizeEditorBody();
 }
 
 function closeEditor() {
   mediaUploadToken += 1;
   activeMediaUploads = 0;
   isSavingPost = false;
+  editorRange = null;
   editingPostId = "";
   editorForm.reset();
+  editorSurface.innerHTML = "";
   setEditorStatus("");
   updateEditorState();
   editorElement.hidden = true;
@@ -423,90 +420,266 @@ function updateEditorState() {
       : "저장";
   cancelEditButton.disabled = isSavingPost;
   editorTitle.disabled = isSavingPost;
-  editorBody.disabled = isSavingPost;
+  editorSurface.contentEditable = shouldDisableControls ? "false" : "true";
   editorToolbarButtons.forEach((button) => {
     button.disabled = shouldDisableControls;
   });
 }
 
+function setEditorContent(rawBody) {
+  editorBody.value = rawBody;
+  editorSurface.innerHTML = renderPostBody(rawBody);
+
+  if (!editorSurface.textContent.trim() && !editorSurface.querySelector("img, video")) {
+    editorSurface.innerHTML = "";
+  }
+}
+
+function syncEditorBody() {
+  editorBody.value = serializeEditorContent();
+  return editorBody.value;
+}
+
+function editorContainsNode(node) {
+  if (!node) {
+    return false;
+  }
+
+  return node === editorSurface || editorSurface.contains(node);
+}
+
 function rememberEditorSelection() {
-  editorSelection = {
-    start: editorBody.selectionStart,
-    end: editorBody.selectionEnd,
-  };
-}
+  const selection = window.getSelection();
 
-function getEditorSelection() {
-  const length = editorBody.value.length;
-
-  if (document.activeElement === editorBody) {
-    rememberEditorSelection();
+  if (!selection?.rangeCount || !editorContainsNode(selection.anchorNode)) {
+    return;
   }
 
-  return {
-    start: Math.min(editorSelection.start, length),
-    end: Math.min(editorSelection.end, length),
-  };
+  editorRange = selection.getRangeAt(0).cloneRange();
 }
 
-function setEditorSelection(start, end = start) {
-  editorBody.focus();
-  editorBody.setSelectionRange(start, end);
-  rememberEditorSelection();
+function focusEditorEnd() {
+  editorSurface.focus();
+
+  const range = document.createRange();
+  range.selectNodeContents(editorSurface);
+  range.collapse(false);
+
+  const selection = window.getSelection();
+  selection.removeAllRanges();
+  selection.addRange(range);
+  editorRange = range.cloneRange();
 }
 
-function resizeEditorBody() {
-  if (editorResizeFrame) {
-    window.cancelAnimationFrame(editorResizeFrame);
+function restoreEditorSelection() {
+  editorSurface.focus();
+
+  const selection = window.getSelection();
+  selection.removeAllRanges();
+
+  if (editorRange && editorContainsNode(editorRange.commonAncestorContainer)) {
+    selection.addRange(editorRange);
+  } else {
+    focusEditorEnd();
   }
+}
 
-  editorResizeFrame = window.requestAnimationFrame(() => {
-    editorResizeFrame = 0;
+function normalizeEditorContent() {
+  editorSurface.querySelectorAll("a").forEach((link) => {
+    const href = link.getAttribute("href") ?? "";
 
-    if (editorElement.hidden) {
+    if (!isSafeUrl(href)) {
+      link.replaceWith(document.createTextNode(link.textContent));
       return;
     }
 
-    editorBody.style.height = "auto";
-    const minHeight = Number.parseFloat(getComputedStyle(editorBody).minHeight) || 260;
-    editorBody.style.height = `${Math.max(editorBody.scrollHeight, minHeight)}px`;
+    link.setAttribute("target", "_blank");
+    link.setAttribute("rel", "noopener noreferrer");
+  });
+
+  editorSurface.querySelectorAll("script, style, iframe, object, embed").forEach((node) => {
+    node.remove();
   });
 }
 
-function insertEditorText(text, options = {}) {
-  const { start, end } = getEditorSelection();
-  const current = editorBody.value;
-  const prefix = options.block && start > 0 && current[start - 1] !== "\n" ? "\n\n" : "";
-  const suffix = options.block && current[end] && current[end] !== "\n" ? "\n\n" : "";
-
-  editorBody.value = `${current.slice(0, start)}${prefix}${text}${suffix}${current.slice(end)}`;
-  setEditorSelection(start + prefix.length + text.length);
-  resizeEditorBody();
+function applyCommand(command, value = null) {
+  restoreEditorSelection();
+  document.execCommand(command, false, value);
+  normalizeEditorContent();
+  rememberEditorSelection();
+  syncEditorBody();
 }
 
-function wrapEditorSelection(before, after = before, fallback = "") {
-  const { start, end } = getEditorSelection();
-  const current = editorBody.value;
-  const selected = current.slice(start, end) || fallback;
-  const next = `${before}${selected}${after}`;
-
-  editorBody.value = `${current.slice(0, start)}${next}${current.slice(end)}`;
-  setEditorSelection(start + before.length, start + before.length + selected.length);
-  resizeEditorBody();
+function insertHtmlAtSelection(html) {
+  restoreEditorSelection();
+  document.execCommand("insertHTML", false, html);
+  normalizeEditorContent();
+  rememberEditorSelection();
+  syncEditorBody();
 }
 
-function quoteEditorSelection() {
-  const { start, end } = getEditorSelection();
-  const current = editorBody.value;
-  const selected = current.slice(start, end) || "인용";
-  const next = selected
-    .split("\n")
-    .map((line) => `> ${line}`)
-    .join("\n");
+function getPlainEditorText(node) {
+  return (node.textContent ?? "").replace(/\u00a0/g, " ").trim();
+}
 
-  editorBody.value = `${current.slice(0, start)}${next}${current.slice(end)}`;
-  setEditorSelection(start, start + next.length);
-  resizeEditorBody();
+function serializeInlineNodes(nodes) {
+  return [...nodes]
+    .map((node) => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        return node.nodeValue.replace(/\u00a0/g, " ");
+      }
+
+      if (node.nodeType !== Node.ELEMENT_NODE) {
+        return "";
+      }
+
+      const tag = node.tagName.toLowerCase();
+
+      if (tag === "br") {
+        return "\n";
+      }
+
+      const text = serializeInlineNodes(node.childNodes);
+
+      if (!text.trim()) {
+        return "";
+      }
+
+      if (tag === "strong" || tag === "b") {
+        return `**${text}**`;
+      }
+
+      if (tag === "em" || tag === "i") {
+        return `*${text}*`;
+      }
+
+      if (tag === "a") {
+        const href = node.getAttribute("href") ?? "";
+
+        return isSafeUrl(href) ? `[${text}](${href})` : text;
+      }
+
+      return text;
+    })
+    .join("");
+}
+
+function serializeMediaNode(node) {
+  const image = node.matches?.("img") ? node : node.querySelector?.("img");
+
+  if (image) {
+    const src = image.getAttribute("src") ?? "";
+    const alt = image.getAttribute("alt") ?? "";
+
+    return isSafeUrl(src, { media: true }) ? `![${alt}](${src})` : "";
+  }
+
+  const video = node.matches?.("video") ? node : node.querySelector?.("video");
+
+  if (video) {
+    const src = video.getAttribute("src") ?? "";
+    const caption = node.querySelector?.("figcaption")?.textContent.trim() ?? "";
+    const label = caption ? `:${caption}` : "";
+
+    return isSafeUrl(src, { media: true }) ? `@[video${label}](${src})` : "";
+  }
+
+  return "";
+}
+
+function serializeBlock(node) {
+  if (node.nodeType === Node.TEXT_NODE) {
+    return node.nodeValue.trim();
+  }
+
+  if (node.nodeType !== Node.ELEMENT_NODE) {
+    return "";
+  }
+
+  const tag = node.tagName.toLowerCase();
+
+  if (tag === "figure" || tag === "img" || tag === "video") {
+    return serializeMediaNode(node);
+  }
+
+  if (tag === "h1" || tag === "h2" || tag === "h3") {
+    return `## ${serializeInlineNodes(node.childNodes).trim()}`;
+  }
+
+  if (tag === "blockquote") {
+    const lines = [...node.childNodes]
+      .map((child) => serializeBlock(child))
+      .join("\n")
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+    return lines.map((line) => `> ${line}`).join("\n");
+  }
+
+  if (tag === "ul" || tag === "ol") {
+    return [...node.children]
+      .map((child) => serializeInlineNodes(child.childNodes).trim())
+      .filter(Boolean)
+      .join("\n");
+  }
+
+  return serializeInlineNodes(node.childNodes).trim();
+}
+
+function serializeEditorContent() {
+  normalizeEditorContent();
+
+  const blocks = [...editorSurface.childNodes]
+    .map((node) => serializeBlock(node))
+    .map((block) => block.trim())
+    .filter(Boolean);
+
+  if (blocks.length === 0 && getPlainEditorText(editorSurface)) {
+    blocks.push(getPlainEditorText(editorSurface));
+  }
+
+  return blocks.join("\n\n");
+}
+
+function insertDefaultText(text) {
+  restoreEditorSelection();
+
+  const selection = window.getSelection();
+
+  if (!selection.isCollapsed) {
+    return;
+  }
+
+  const marker = `editor-default-${Date.now()}-${Math.random()}`;
+  document.execCommand(
+    "insertHTML",
+    false,
+    `<span data-editor-marker="${marker}">${escapeHtml(text)}</span>`,
+  );
+
+  const inserted = editorSurface.querySelector(`[data-editor-marker="${marker}"]`);
+
+  if (!inserted) {
+    rememberEditorSelection();
+    return;
+  }
+
+  const range = document.createRange();
+  range.selectNodeContents(inserted);
+  selection.removeAllRanges();
+  selection.addRange(range);
+  editorRange = range.cloneRange();
+}
+
+function insertEditorMedia(type, url) {
+  const html =
+    type === "image"
+      ? `<figure><img src="${escapeHtml(url)}" alt="" loading="lazy"></figure>`
+      : `<figure><video src="${escapeHtml(url)}" controls preload="metadata"></video></figure>`;
+
+  insertHtmlAtSelection(html);
+  syncEditorBody();
 }
 
 function applyEditorFormat(format) {
@@ -515,22 +688,26 @@ function applyEditorFormat(format) {
   }
 
   if (format === "heading") {
-    insertEditorText("## 소제목", { block: true });
+    insertDefaultText("소제목");
+    applyCommand("formatBlock", "h3");
     return;
   }
 
   if (format === "bold") {
-    wrapEditorSelection("**", "**", "강조");
+    insertDefaultText("강조");
+    applyCommand("bold");
     return;
   }
 
   if (format === "italic") {
-    wrapEditorSelection("*", "*", "기울임");
+    insertDefaultText("기울임");
+    applyCommand("italic");
     return;
   }
 
   if (format === "quote") {
-    quoteEditorSelection();
+    insertDefaultText("인용");
+    applyCommand("formatBlock", "blockquote");
     return;
   }
 
@@ -542,9 +719,8 @@ function applyEditorFormat(format) {
       return;
     }
 
-    const { start, end } = getEditorSelection();
-    const label = editorBody.value.slice(start, end) || "링크";
-    wrapEditorSelection("[", `](${url})`, label);
+    insertDefaultText("링크");
+    applyCommand("createLink", url);
     setEditorStatus("");
   }
 }
@@ -554,10 +730,6 @@ function getSafeFileName(file) {
   const id = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
 
   return extension ? `${id}.${extension}` : id;
-}
-
-function getSafeCaption(file) {
-  return file.name.replace(/[\[\]\(\)\n\r]/g, " ").trim() || "첨부";
 }
 
 function getUploadErrorMessage(error) {
@@ -601,7 +773,7 @@ async function uploadEditorMedia(file, type) {
   const uploadToken = mediaUploadToken;
 
   activeMediaUploads += 1;
-  setEditorStatus(`업로드 중: ${getSafeCaption(file)}`);
+  setEditorStatus(type === "image" ? "이미지 업로드 중..." : "영상 업로드 중...");
   updateEditorState();
 
   const path = `${session.user.id}/${getSafeFileName(file)}`;
@@ -634,14 +806,9 @@ async function uploadEditorMedia(file, type) {
   }
 
   const { data } = supabaseClient.storage.from(mediaBucket).getPublicUrl(path);
-  const caption = getSafeCaption(file);
-  const marker =
-    type === "image"
-      ? `![${caption}](${data.publicUrl})`
-      : `@[video:${caption}](${data.publicUrl})`;
 
-  insertEditorText(marker, { block: true });
-  setEditorStatus(`첨부됨: ${caption}`);
+  insertEditorMedia(type, data.publicUrl);
+  setEditorStatus(type === "image" ? "이미지가 첨부되었습니다." : "영상이 첨부되었습니다.");
 }
 
 async function saveEditedPost(event) {
@@ -661,7 +828,7 @@ async function saveEditedPost(event) {
   }
 
   const title = editorTitle.value.trim();
-  const body = editorBody.value.trim();
+  const body = syncEditorBody().trim();
 
   if (!title) {
     setEditorStatus("제목을 입력하세요.");
@@ -671,7 +838,7 @@ async function saveEditedPost(event) {
 
   if (!body) {
     setEditorStatus("본문을 입력하세요.");
-    editorBody.focus();
+    editorSurface.focus();
     return;
   }
 
@@ -958,17 +1125,29 @@ editorTitle.addEventListener("input", () => {
   }
 });
 
-editorBody.addEventListener("input", () => {
+editorSurface.addEventListener("input", () => {
   rememberEditorSelection();
-  resizeEditorBody();
+  syncEditorBody();
 
   if (!isSavingPost && activeMediaUploads === 0) {
     setEditorStatus("");
   }
 });
 
-["keyup", "mouseup", "select", "focus"].forEach((eventName) => {
-  editorBody.addEventListener(eventName, rememberEditorSelection);
+editorSurface.addEventListener("paste", (event) => {
+  event.preventDefault();
+  restoreEditorSelection();
+  document.execCommand("insertText", false, event.clipboardData?.getData("text/plain") ?? "");
+  normalizeEditorContent();
+  rememberEditorSelection();
+  syncEditorBody();
+});
+
+["keyup", "mouseup", "focus", "blur"].forEach((eventName) => {
+  editorSurface.addEventListener(eventName, () => {
+    rememberEditorSelection();
+    syncEditorBody();
+  });
 });
 
 editorToolbar.addEventListener("pointerdown", (event) => {
