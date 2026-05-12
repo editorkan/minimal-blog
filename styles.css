@@ -276,6 +276,22 @@ textarea {
     grid-column: 1 / -1;
   }
 
+  .search-field {
+    order: 2;
+  }
+
+  .post-list {
+    order: 3;
+  }
+
+  .subscribe-form {
+    order: 4;
+  }
+
+  .small-text {
+    order: 5;
+  }
+
   .subscribe-form {
     grid-template-columns: minmax(0, 1fr) auto;
     gap: 8px;
