@@ -56,32 +56,51 @@ function renderSetupError() {
   `;
 }
 
-function getHashPostId() {
+function getDecodedHash() {
   try {
-    const value = decodeURIComponent(window.location.hash.slice(1));
-    return value === "admin" ? "" : value;
+    return decodeURIComponent(window.location.hash.slice(1));
   } catch {
     window.location.hash = "";
     return "";
   }
 }
 
-function handleHashRoute() {
-  let hash = "";
-
+function hasAdminQuery() {
   try {
-    hash = decodeURIComponent(window.location.hash.slice(1));
+    return new URLSearchParams(window.location.search).has("admin");
   } catch {
-    window.location.hash = "";
-    return;
+    return false;
   }
+}
 
-  if (hash === "admin") {
+function isAdminRoute() {
+  return getDecodedHash() === "admin" || hasAdminQuery();
+}
+
+function getHashPostId() {
+  const value = getDecodedHash();
+
+  return isAdminRoute() ? "" : value;
+}
+
+function handleRoute() {
+  if (isAdminRoute()) {
     openAdminPanel();
     return;
   }
 
-  selectPost(hash, false);
+  selectPost(getHashPostId(), false);
+}
+
+function clearAdminRoute() {
+  if (!isAdminRoute()) {
+    return;
+  }
+
+  const url = new URL(window.location.href);
+  url.searchParams.delete("admin");
+  url.hash = currentPostId ? encodeURIComponent(currentPostId) : "";
+  window.history.replaceState(null, "", url.toString());
 }
 
 function normalizePost(row) {
@@ -374,6 +393,7 @@ function closeAdminPanel() {
   adminPanel.hidden = true;
   pageElement.inert = false;
   adminStatus.textContent = "";
+  clearAdminRoute();
 }
 
 function requireAdmin() {
@@ -540,7 +560,11 @@ document.addEventListener("keydown", (event) => {
 });
 
 window.addEventListener("hashchange", () => {
-  handleHashRoute();
+  handleRoute();
+});
+
+window.addEventListener("pageshow", () => {
+  handleRoute();
 });
 
 if (isConfigured) {
@@ -549,7 +573,8 @@ if (isConfigured) {
   });
 }
 
+handleRoute();
 void refreshSession();
 void loadPosts().then(() => {
-  handleHashRoute();
+  handleRoute();
 });
