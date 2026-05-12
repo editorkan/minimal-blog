@@ -21,6 +21,8 @@ const editorImage = document.querySelector("#editor-image");
 const editorVideo = document.querySelector("#editor-video");
 const editorStatus = document.querySelector("#editor-status");
 const cancelEditButton = document.querySelector("#cancel-edit");
+const editorSaveButton = editorForm.querySelector('button[type="submit"]');
+const editorToolbarButtons = [...editorToolbar.querySelectorAll("button")];
 const subscribeForm = document.querySelector("#subscribe-form");
 const subscriberEmail = document.querySelector("#subscriber-email");
 const subscribeStatus = document.querySelector("#subscribe-status");
@@ -39,6 +41,11 @@ let editingPostId = "";
 let posts = [];
 let session = null;
 let isAdmin = false;
+let editorSelection = { start: 0, end: 0 };
+let editorResizeFrame = 0;
+let activeMediaUploads = 0;
+let mediaUploadToken = 0;
+let isSavingPost = false;
 const mediaBucket = "post-media";
 const maxMediaBytes = 100 * 1024 * 1024;
 
@@ -239,6 +246,7 @@ function normalizePost(row) {
       .map((paragraph) => paragraph.trim())
       .filter(Boolean),
     rawBody: row.body,
+    htmlBody: renderPostBody(row.body),
     date: new Date(row.published_at ?? row.created_at).toISOString().slice(0, 10),
     publishedAt: row.published_at,
   };
@@ -308,7 +316,7 @@ function renderArticle(post) {
     </div>
     <h2>${escapeHtml(post.title)}</h2>
     <div class="article-body">
-      ${renderPostBody(post.rawBody)}
+      ${post.htmlBody}
     </div>
     <div class="article-footer">
       ${
@@ -371,17 +379,31 @@ function openEditor(post = null) {
     return;
   }
 
+  mediaUploadToken += 1;
+  activeMediaUploads = 0;
+  isSavingPost = false;
   editingPostId = post?.id ?? "";
   editorTitle.value = post?.title ?? "";
   editorBody.value = post?.rawBody ?? "";
+  editorSelection = {
+    start: editorBody.value.length,
+    end: editorBody.value.length,
+  };
+  setEditorStatus("");
+  updateEditorState();
   editorElement.hidden = false;
   editorTitle.focus();
+  resizeEditorBody();
 }
 
 function closeEditor() {
+  mediaUploadToken += 1;
+  activeMediaUploads = 0;
+  isSavingPost = false;
   editingPostId = "";
   editorForm.reset();
-  editorStatus.textContent = "";
+  setEditorStatus("");
+  updateEditorState();
   editorElement.hidden = true;
 }
 
@@ -389,36 +411,92 @@ function setEditorStatus(message) {
   editorStatus.textContent = message;
 }
 
+function updateEditorState() {
+  const isUploading = activeMediaUploads > 0;
+  const shouldDisableControls = isSavingPost || isUploading;
+
+  editorSaveButton.disabled = shouldDisableControls;
+  editorSaveButton.textContent = isSavingPost
+    ? "저장 중"
+    : isUploading
+      ? "업로드 중"
+      : "저장";
+  cancelEditButton.disabled = isSavingPost;
+  editorTitle.disabled = isSavingPost;
+  editorBody.disabled = isSavingPost;
+  editorToolbarButtons.forEach((button) => {
+    button.disabled = shouldDisableControls;
+  });
+}
+
+function rememberEditorSelection() {
+  editorSelection = {
+    start: editorBody.selectionStart,
+    end: editorBody.selectionEnd,
+  };
+}
+
+function getEditorSelection() {
+  const length = editorBody.value.length;
+
+  if (document.activeElement === editorBody) {
+    rememberEditorSelection();
+  }
+
+  return {
+    start: Math.min(editorSelection.start, length),
+    end: Math.min(editorSelection.end, length),
+  };
+}
+
+function setEditorSelection(start, end = start) {
+  editorBody.focus();
+  editorBody.setSelectionRange(start, end);
+  rememberEditorSelection();
+}
+
+function resizeEditorBody() {
+  if (editorResizeFrame) {
+    window.cancelAnimationFrame(editorResizeFrame);
+  }
+
+  editorResizeFrame = window.requestAnimationFrame(() => {
+    editorResizeFrame = 0;
+
+    if (editorElement.hidden) {
+      return;
+    }
+
+    editorBody.style.height = "auto";
+    const minHeight = Number.parseFloat(getComputedStyle(editorBody).minHeight) || 260;
+    editorBody.style.height = `${Math.max(editorBody.scrollHeight, minHeight)}px`;
+  });
+}
+
 function insertEditorText(text, options = {}) {
-  const start = editorBody.selectionStart;
-  const end = editorBody.selectionEnd;
+  const { start, end } = getEditorSelection();
   const current = editorBody.value;
   const prefix = options.block && start > 0 && current[start - 1] !== "\n" ? "\n\n" : "";
   const suffix = options.block && current[end] && current[end] !== "\n" ? "\n\n" : "";
 
   editorBody.value = `${current.slice(0, start)}${prefix}${text}${suffix}${current.slice(end)}`;
-  editorBody.focus();
-  editorBody.setSelectionRange(
-    start + prefix.length + text.length,
-    start + prefix.length + text.length,
-  );
+  setEditorSelection(start + prefix.length + text.length);
+  resizeEditorBody();
 }
 
 function wrapEditorSelection(before, after = before, fallback = "") {
-  const start = editorBody.selectionStart;
-  const end = editorBody.selectionEnd;
+  const { start, end } = getEditorSelection();
   const current = editorBody.value;
   const selected = current.slice(start, end) || fallback;
   const next = `${before}${selected}${after}`;
 
   editorBody.value = `${current.slice(0, start)}${next}${current.slice(end)}`;
-  editorBody.focus();
-  editorBody.setSelectionRange(start + before.length, start + before.length + selected.length);
+  setEditorSelection(start + before.length, start + before.length + selected.length);
+  resizeEditorBody();
 }
 
 function quoteEditorSelection() {
-  const start = editorBody.selectionStart;
-  const end = editorBody.selectionEnd;
+  const { start, end } = getEditorSelection();
   const current = editorBody.value;
   const selected = current.slice(start, end) || "인용";
   const next = selected
@@ -427,8 +505,8 @@ function quoteEditorSelection() {
     .join("\n");
 
   editorBody.value = `${current.slice(0, start)}${next}${current.slice(end)}`;
-  editorBody.focus();
-  editorBody.setSelectionRange(start, start + next.length);
+  setEditorSelection(start, start + next.length);
+  resizeEditorBody();
 }
 
 function applyEditorFormat(format) {
@@ -460,14 +538,14 @@ function applyEditorFormat(format) {
     const url = window.prompt("URL");
 
     if (!url || !isSafeUrl(url)) {
+      setEditorStatus("올바른 URL을 입력하세요.");
       return;
     }
 
-    const label = editorBody.value.slice(
-      editorBody.selectionStart,
-      editorBody.selectionEnd,
-    ) || "링크";
+    const { start, end } = getEditorSelection();
+    const label = editorBody.value.slice(start, end) || "링크";
     wrapEditorSelection("[", `](${url})`, label);
+    setEditorStatus("");
   }
 }
 
@@ -505,6 +583,11 @@ async function uploadEditorMedia(file, type) {
     return;
   }
 
+  if (activeMediaUploads > 0 || isSavingPost) {
+    setEditorStatus("현재 작업이 끝난 뒤 다시 시도하세요.");
+    return;
+  }
+
   if (!file.type.startsWith(`${type}/`)) {
     setEditorStatus("파일 형식이 맞지 않습니다.");
     return;
@@ -515,19 +598,38 @@ async function uploadEditorMedia(file, type) {
     return;
   }
 
-  setEditorStatus("업로드 중...");
+  const uploadToken = mediaUploadToken;
+
+  activeMediaUploads += 1;
+  setEditorStatus(`업로드 중: ${getSafeCaption(file)}`);
+  updateEditorState();
 
   const path = `${session.user.id}/${getSafeFileName(file)}`;
-  const { error } = await supabaseClient.storage
-    .from(mediaBucket)
-    .upload(path, file, {
-      cacheControl: "31536000",
-      contentType: file.type,
-      upsert: false,
-    });
+  let uploadError = null;
 
-  if (error) {
-    setEditorStatus(getUploadErrorMessage(error));
+  try {
+    const { error } = await supabaseClient.storage
+      .from(mediaBucket)
+      .upload(path, file, {
+        cacheControl: "31536000",
+        contentType: file.type,
+        upsert: false,
+      });
+
+    uploadError = error;
+  } catch (error) {
+    uploadError = error;
+  }
+
+  activeMediaUploads = Math.max(0, activeMediaUploads - 1);
+  updateEditorState();
+
+  if (uploadToken !== mediaUploadToken || editorElement.hidden) {
+    return;
+  }
+
+  if (uploadError) {
+    setEditorStatus(getUploadErrorMessage(uploadError));
     return;
   }
 
@@ -539,7 +641,7 @@ async function uploadEditorMedia(file, type) {
       : `@[video:${caption}](${data.publicUrl})`;
 
   insertEditorText(marker, { block: true });
-  setEditorStatus("첨부되었습니다.");
+  setEditorStatus(`첨부됨: ${caption}`);
 }
 
 async function saveEditedPost(event) {
@@ -549,12 +651,33 @@ async function saveEditedPost(event) {
     return;
   }
 
+  if (isSavingPost) {
+    return;
+  }
+
+  if (activeMediaUploads > 0) {
+    setEditorStatus("첨부 업로드가 끝난 뒤 저장하세요.");
+    return;
+  }
+
   const title = editorTitle.value.trim();
   const body = editorBody.value.trim();
 
-  if (!title || !body) {
+  if (!title) {
+    setEditorStatus("제목을 입력하세요.");
+    editorTitle.focus();
     return;
   }
+
+  if (!body) {
+    setEditorStatus("본문을 입력하세요.");
+    editorBody.focus();
+    return;
+  }
+
+  isSavingPost = true;
+  setEditorStatus("저장 중...");
+  updateEditorState();
 
   const payload = {
     title,
@@ -570,21 +693,31 @@ async function saveEditedPost(event) {
         .eq("id", editingPostId)
         .select("id")
         .single();
-  const { data, error } = await query;
+  let result = null;
+  let saveError = null;
 
-  if (error) {
-    window.alert(error.message);
+  try {
+    result = await query;
+    saveError = result.error;
+  } catch (error) {
+    saveError = error;
+  }
+
+  if (saveError) {
+    isSavingPost = false;
+    updateEditorState();
+    setEditorStatus(`저장 실패: ${saveError.message ?? "알 수 없는 오류"}`);
     return;
   }
 
   closeEditor();
   searchElement.value = "";
-  currentPostId = data.id;
+  currentPostId = result.data.id;
   await loadPosts();
-  selectPost(data.id);
+  selectPost(result.data.id);
 
   if (isNewPost) {
-    const notification = await notifySubscribers(data.id);
+    const notification = await notifySubscribers(result.data.id);
 
     if (!notification.ok) {
       window.alert("글은 저장됐지만 이메일 발송은 실패했습니다.");
@@ -819,8 +952,44 @@ cancelEditButton.addEventListener("click", () => {
   closeEditor();
 });
 
+editorTitle.addEventListener("input", () => {
+  if (!isSavingPost && activeMediaUploads === 0) {
+    setEditorStatus("");
+  }
+});
+
+editorBody.addEventListener("input", () => {
+  rememberEditorSelection();
+  resizeEditorBody();
+
+  if (!isSavingPost && activeMediaUploads === 0) {
+    setEditorStatus("");
+  }
+});
+
+["keyup", "mouseup", "select", "focus"].forEach((eventName) => {
+  editorBody.addEventListener(eventName, rememberEditorSelection);
+});
+
+editorToolbar.addEventListener("pointerdown", (event) => {
+  const button = event.target.closest("button");
+
+  if (!button || button.disabled) {
+    return;
+  }
+
+  rememberEditorSelection();
+  event.preventDefault();
+});
+
 editorToolbar.addEventListener("click", (event) => {
   const button = event.target.closest("[data-format]");
+  const fileButton = event.target.closest("[data-file-input]");
+
+  if (fileButton) {
+    document.querySelector(`#${fileButton.dataset.fileInput}`)?.click();
+    return;
+  }
 
   if (!button) {
     return;

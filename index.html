@@ -13,7 +13,7 @@
       name="description"
       content="짧은 기록을 담는 미니멀 개인 블로그"
     />
-    <link rel="stylesheet" href="./styles.css?v=20260513-editor" />
+    <link rel="stylesheet" href="./styles.css?v=20260513-editor-ux" />
   </head>
   <body>
     <main class="page">
@@ -46,20 +46,16 @@
           <form id="editor-form">
             <input id="editor-title" type="text" placeholder="제목" required />
             <div class="editor-toolbar" aria-label="서식">
-              <button type="button" data-format="heading">H</button>
-              <button type="button" data-format="bold">B</button>
-              <button type="button" data-format="italic">I</button>
-              <button type="button" data-format="quote">인용</button>
-              <button type="button" data-format="link">링크</button>
-              <label class="file-button">
-                이미지
-                <input id="editor-image" type="file" accept="image/*" hidden />
-              </label>
-              <label class="file-button">
-                영상
-                <input id="editor-video" type="file" accept="video/*" hidden />
-              </label>
+              <button type="button" data-format="heading" aria-label="소제목" title="소제목">H</button>
+              <button type="button" data-format="bold" aria-label="굵게" title="굵게">B</button>
+              <button type="button" data-format="italic" aria-label="기울임" title="기울임">I</button>
+              <button type="button" data-format="quote" aria-label="인용" title="인용">인용</button>
+              <button type="button" data-format="link" aria-label="링크" title="링크">링크</button>
+              <button type="button" data-file-input="editor-image" aria-label="이미지 첨부" title="이미지 첨부">이미지</button>
+              <button type="button" data-file-input="editor-video" aria-label="영상 첨부" title="영상 첨부">영상</button>
             </div>
+            <input id="editor-image" type="file" accept="image/*" hidden />
+            <input id="editor-video" type="file" accept="video/*" hidden />
             <textarea id="editor-body" placeholder="본문" required></textarea>
             <p id="editor-status" class="small-text" aria-live="polite"></p>
             <div class="editor-actions">
@@ -124,6 +120,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="./config.js"></script>
-    <script src="./script.js?v=20260513-storage"></script>
+    <script src="./script.js?v=20260513-editor-ux"></script>
   </body>
 </html>
