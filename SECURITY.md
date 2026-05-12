@@ -12,6 +12,8 @@ GitHub Pages only serves static files. Authentication, authorization, writes, an
 - Public visitors cannot read the subscriber list.
 - Post writes require an authenticated admin user.
 - Email delivery is performed by a Supabase Edge Function using server-side secrets.
+- The frontend includes a restrictive Content Security Policy.
+- The email Edge Function should restrict CORS with `ALLOWED_ORIGINS`.
 
 ## Residual Risks
 
@@ -25,4 +27,6 @@ GitHub Pages only serves static files. Authentication, authorization, writes, an
 - Keep `public.posts`, `public.subscribers`, and `public.admin_users` RLS enabled.
 - Keep `SUPABASE_SERVICE_ROLE_KEY` only in Supabase Edge Function secrets.
 - Keep `RESEND_API_KEY` only in Supabase Edge Function secrets.
+- Set `ALLOWED_ORIGINS` to the production GitHub Pages URL and custom domain.
 - Restrict GitHub repository write access to trusted maintainers.
+- Enable GitHub Pages HTTPS enforcement for any custom domain.

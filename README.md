@@ -38,6 +38,7 @@ window.BLOG_CONFIG = {
 ```bash
 supabase secrets set RESEND_API_KEY=YOUR_RESEND_API_KEY
 supabase secrets set MAIL_FROM="Blog <post@yourdomain.com>"
+supabase secrets set ALLOWED_ORIGINS="https://editorkan.github.io,https://editorkan.github.io/minimal-blog"
 ```
 
 3. Edge Function을 배포합니다.
@@ -55,6 +56,23 @@ supabase functions deploy notify-subscribers
 5. Branch는 `main`, folder는 `/ (root)`를 선택합니다.
 
 GitHub Pages는 루트의 `index.html`을 진입 파일로 사용합니다.
+
+## 4. Custom Domain
+
+심플한 도메인을 쓰려면 도메인을 구매한 뒤 GitHub Pages의 `Custom domain`에 입력합니다.
+
+예:
+
+```txt
+blog.example.com
+```
+
+DNS에는 보통 아래 중 하나를 설정합니다.
+
+- `blog.example.com` 같은 서브도메인: `CNAME` -> `editorkan.github.io`
+- `example.com` 같은 apex 도메인: GitHub Pages가 안내하는 `A` / `AAAA` 레코드
+
+Custom domain을 설정한 뒤 GitHub Pages에서 `Enforce HTTPS`를 켭니다.
 
 ## 관리
 
